@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Needy Jhansi — Geospatial Directory by Sarthak</title>
+    <!-- Tailwind CSS for modern UI design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for premium typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for balanced icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet CSS for Map rendering -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #map {
+            height: 100%;
+            min-height: 480px;
+            width: 100%;
+            z-index: 10;
+        }
+        /* Custom scrollbar for sidebar directory */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 99px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #cbd5e1;
+        }
+        /* Pulse Animation for selected pins */
+        @keyframes subtle-pulse {
+            0%, 100% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.1); filter: brightness(1.1); }
+        }
+        .animate-pulse-select {
+            animation: subtle-pulse 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Header Navigation -->
+    <header class="bg-slate-900 text-white border-b border-slate-800 shrink-0">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3.5">
+                <span class="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md text-xl flex items-center justify-center">
+                    <i class="fa-solid fa-map-location-dot"></i>
+                </span>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+                        The Needy Jhansi
+                    </h1>
+                    <p class="text-xs text-slate-400 font-medium">Smart Geospatial Discovery & Directory System</p>
+                </div>
+            </div>
+            
+            <!-- Creator Badge & Metrics -->
+            <div class="flex items-center gap-3">
+                <div class="text-right hidden md:block">
+                    <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">Created & Crafted By</span>
+                    <span class="text-sm font-semibold text-indigo-400"><i class="fa-solid fa-code text-xs mr-1"></i> Sarthak</span>
+                </div>
+                <div class="h-8 w-[1px] bg-slate-800 hidden md:block"></div>
+                <div class="bg-slate-800 border border-slate-700/50 px-3 py-1.5 rounded-xl flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="text-xs font-mono text-slate-300 font-medium" id="db-counter">Database: 20 Locations</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6 sm:px-6 lg:px-8 flex flex-col lg:flex-row gap-6 overflow-hidden">
+        
+        <!-- Left Column: Controls & Search Directory -->
+        <div class="w-full lg:w-[42%] flex flex-col gap-4 overflow-hidden h-full">
+            
+            <!-- Controls Card -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 shrink-0">
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-1.5">
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Search Local Directory</label>
+                        <button id="clear-search-btn" onclick="clearSearch()" class="text-xs text-slate-400 hover:text-indigo-600 hidden transition font-medium">Clear search</button>
+                    </div>
+                    <div class="relative">
+                        <input type="text" id="search-input" oninput="handleSearch()" placeholder="Type to search school, college, hospital..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition outline-none text-sm placeholder:text-slate-400">
+                        <span class="absolute left-3.5 top-3.5 text-slate-400 text-sm"><i class="fa-solid fa-magnifying-glass"></i></span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Filter by Category</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5" id="category-filters">
+                        <button onclick="filterCategory('all')" id="btn-all" class="category-btn active bg-indigo-600 text-white text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-2 justify-center shadow-sm shadow-indigo-600/10">
+                            <i class="fa-solid fa-globe"></i> <span>All</span>
+                        </button>
+                        <button onclick="filterCategory('college')" id="btn-college" class="category-btn bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-2 justify-center">
+                            <i class="fa-solid fa-graduation-cap text-indigo-500"></i> <span>Colleges</span>
+                        </button>
+                        <button onclick="filterCategory('school')" id="btn-school" class="category-btn bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-2 justify-center">
+                            <i class="fa-solid fa-school text-sky-500"></i> <span>Schools</span>
+                        </button>
+                        <button onclick="filterCategory('hospital')" id="btn-hospital" class="category-btn bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-2 justify-center">
+                            <i class="fa-solid fa-hospital text-rose-500"></i> <span>Hospitals</span>
+                        </button>
+                        <button onclick="filterCategory('shop')" id="btn-shop" class="category-btn bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-2 justify-center">
+                            <i class="fa-solid fa-bag-shopping text-emerald-500"></i> <span>Shops</span>
+                        </button>
+                        <button onclick="filterCategory('monument')" id="btn-monument" class="category-btn bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-2 justify-center">
+                            <i class="fa-solid fa-gopuram text-amber-500"></i> <span>Monuments</span>
+                        </button>
+                        <button onclick="filterCategory('hotel')" id="btn-hotel" class="category-btn bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-2 justify-center">
+                            <i class="fa-solid fa-utensils text-violet-500"></i> <span>Dining</span>
+                        </button>
+                        <button onclick="filterCategory('mart')" id="btn-mart" class="category-btn bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-2 justify-center">
+                            <i class="fa-solid fa-cart-shopping text-teal-500"></i> <span>Marts</span>
+                        </button>
+                        <button onclick="filterCategory('showroom')" id="btn-showroom" class="category-btn bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-2 justify-center">
+                            <i class="fa-solid fa-car text-cyan-500"></i> <span>Showrooms</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sub-filters inside Category -->
+                <div id="sub-filters-container" class="mt-4 pt-3 border-t border-slate-100 hidden">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Refine Search:</span>
+                    <div id="sub-filters" class="flex flex-wrap gap-1.5">
+                        <!-- Filled dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- List of Results -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 flex-1 flex flex-col min-h-[280px] overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-list text-slate-400"></i> Found Locations 
+                        <span id="results-count" class="bg-indigo-50 text-indigo-600 text-xs font-bold px-2.5 py-0.5 rounded-full">0</span>
+                    </h3>
+                    <button onclick="toggleAddForm()" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-2 rounded-xl shadow-sm shadow-indigo-600/15 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-plus text-[10px]"></i> Add Location
+                    </button>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2 bg-slate-50/20" id="places-list">
+                    <!-- Dynamic Items injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Map & Selected Place Details -->
+        <div class="w-full lg:w-[58%] flex flex-col gap-4">
+            
+            <!-- Map Container Card -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex-1 flex flex-col relative min-h-[420px]">
+                <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
+                    <h2 class="text-sm font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-map text-indigo-500"></i> Geospatial Map View
+                    </h2>
+                    
+                    <!-- Map Style Switcher -->
+                    <div class="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                        <button onclick="changeMapStyle('voyager')" id="tile-voyager" class="text-[10px] font-bold px-2.5 py-1 rounded-md bg-white text-slate-800 shadow-sm transition">Muted</button>
+                        <button onclick="changeMapStyle('light')" id="tile-light" class="text-[10px] font-bold px-2.5 py-1 rounded-md text-slate-500 hover:text-slate-800 transition">Minimal</button>
+                        <button onclick="changeMapStyle('street')" id="tile-street" class="text-[10px] font-bold px-2.5 py-1 rounded-md text-slate-500 hover:text-slate-800 transition">Standard</button>
+                    </div>
+                </div>
+                
+                <div class="flex-1 rounded-xl overflow-hidden border border-slate-200 relative">
+                    <div id="map" class="shadow-inner"></div>
+                </div>
+            </div>
+
+            <!-- Details Panel / Add Place Panel -->
+            <div id="info-panel" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 min-h-[160px] flex flex-col justify-center">
+                <div id="default-info" class="text-center py-4">
+                    <h4 class="text-sm font-bold text-slate-700 mb-1 flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-location-crosshairs text-indigo-500"></i> Interactive Explorer Guide
+                    </h4>
+                    <p class="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                        To inspect specific location attributes, click a location from the left listing or directly select a custom marker pin on Sarthak's interactive map interface.
+                    </p>
+                </div>
+                
+                <div id="detail-info" class="hidden">
+                    <div class="flex justify-between items-start gap-4">
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap mb-1.5">
+                                <h3 id="detail-title" class="text-lg font-bold text-slate-800 tracking-tight"></h3>
+                                <span id="detail-tag" class="text-[9px] tracking-wider uppercase font-extrabold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600"></span>
+                                <span id="detail-subtag" class="text-[9px] tracking-wider uppercase font-extrabold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-600"></span>
+                            </div>
+                            <p id="detail-coords" class="text-xs text-indigo-500 font-mono font-medium mb-2.5"></p>
+                            <p id="detail-desc" class="text-xs text-slate-500 leading-relaxed mb-4"></p>
+                        </div>
+                        <button id="delete-btn" class="text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition p-2 text-sm" title="Delete Location">
+                            <i class="fa-regular fa-trash-can"></i>
+                        </button>
+                    </div>
+                    <div class="flex gap-2">
+                        <a id="detail-link" href="#" target="_blank" class="inline-flex items-center gap-1.5 bg-slate-900 text-white text-xs font-semibold px-4 py-2.5 rounded-xl hover:bg-slate-800 transition">
+                            Visit Website <i class="fa-solid fa-arrow-up-right-from-square text-[9px] opacity-80"></i>
+                        </a>
+                        <button id="detail-route" class="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition">
+                            <i class="fa-solid fa-route text-slate-500"></i> Get Directions
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Location Panel (Hidden by Default) -->
+            <div id="add-panel" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-plus text-indigo-500"></i> Add Custom Location to Directory
+                    </h3>
+                    <button onclick="toggleAddForm()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <form id="add-place-form" onsubmit="saveNewPlace(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Place Name *</label>
+                            <input type="text" id="add-name" required placeholder="e.g. Bundelkhand Institute" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-slate-800">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Category *</label>
+                            <select id="add-category" onchange="updateSubcategoryDropdown()" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-slate-800">
+                                <option value="college">Colleges</option>
+                                <option value="school">Schools</option>
+                                <option value="hospital">Hospitals</option>
+                                <option value="shop">Shops</option>
+                                <option value="monument">Famous Monuments</option>
+                                <option value="hotel">Hotels & Restaurants</option>
+                                <option value="mart">Nearby Marts</option>
+                                <option value="showroom">Showrooms</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Type / Subcategory *</label>
+                            <select id="add-subcategory" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-slate-800">
+                                <!-- Loaded dynamically -->
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Latitude * (Jhansi: 25.4)</label>
+                            <input type="number" step="any" id="add-lat" required placeholder="e.g. 25.4412" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-mono text-slate-800">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Longitude * (Jhansi: 78.5)</label>
+                            <input type="number" step="any" id="add-lng" required placeholder="e.g. 78.6083" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-mono text-slate-800">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Search Link / Official URL *</label>
+                            <input type="url" id="add-link" required placeholder="https://example.com" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-slate-800">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Description *</label>
+                            <input type="text" id="add-desc" required placeholder="Brief summary of amenities..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-slate-800">
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" onclick="toggleAddForm()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-lg transition">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition shadow-sm">Save to Database</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 text-slate-500 py-6 mt-6 border-t border-slate-800 shrink-0">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs space-y-1.5">
+            <p class="font-medium text-slate-400">The Needy Jhansi — Geospatial Directory Directory Project</p>
+            <p>Designed and programmatically built by <span class="text-slate-300 font-semibold">Sarthak</span> with Leaflet.js and Tailwind.</p>
+        </div>
+    </footer>
+
+    <!-- Custom Safe Notification/Modal Overlays (Prevent system alerts) -->
+    <div id="custom-alert-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[9999] flex items-center justify-center hidden opacity-0 transition-opacity duration-250">
+        <div class="bg-white rounded-2xl max-w-sm w-full mx-4 p-5 shadow-xl border border-slate-100 transform scale-95 transition-transform duration-250">
+            <div class="flex items-start gap-3">
+                <span id="alert-icon" class="p-2 bg-indigo-50 text-indigo-600 rounded-xl text-lg shrink-0">
+                    <i class="fa-solid fa-circle-info"></i>
+                </span>
+                <div class="flex-1">
+                    <h3 id="alert-title" class="text-sm font-bold text-slate-800">Notification</h3>
+                    <p id="alert-msg" class="text-xs text-slate-500 mt-1 leading-relaxed"></p>
+                </div>
+            </div>
+            <div class="flex justify-end mt-4 pt-3 border-t border-slate-50">
+                <button onclick="closeAlertModal()" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="custom-confirm-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[9999] flex items-center justify-center hidden opacity-0 transition-opacity duration-250">
+        <div class="bg-white rounded-2xl max-w-sm w-full mx-4 p-5 shadow-xl border border-slate-100 transform scale-95 transition-transform duration-250">
+            <div class="flex items-start gap-3">
+                <span class="p-2 bg-rose-50 text-rose-600 rounded-xl text-lg shrink-0">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </span>
+                <div class="flex-1">
+                    <h3 class="text-sm font-bold text-slate-800">Confirm Deletion</h3>
+                    <p id="confirm-msg" class="text-xs text-slate-500 mt-1 leading-relaxed">Are you absolutely sure you want to remove this location from your registry?</p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-4 pt-3 border-t border-slate-50">
+                <button onclick="closeConfirmModal(false)" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold px-3 py-1.5 rounded-lg transition">Cancel</button>
+                <button id="confirm-yes-btn" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // Default locations matching Sarthak's original python script
+        const defaultLocations = [
+            // Colleges (Government & Private)
+            { id: 1, name: "Bundelkhand University", category: "college", subcategory: "Government", lat: 25.4412, lng: 78.6083, details: "State University of UP, established in 1975, offering a large variety of higher education streams.", link: "https://www.bujhansi.ac.in/" },
+            { id: 2, name: "Rani Laxmi Bai Central Agricultural University", category: "college", subcategory: "Government", lat: 25.5088, lng: 78.5583, details: "Central university specializing in advanced agricultural sciences and farming frameworks.", link: "https://www.rlbcau.ac.in/" },
+            { id: 3, name: "SR Group of Institutions", category: "college", subcategory: "Private", lat: 25.4670, lng: 78.6511, details: "Prominent private college chain in Jhansi specializing in engineering and management programs.", link: "https://srgi.ac.in/" },
+            
+            // Schools
+            { id: 4, name: "St. Jude's Inter College", category: "school", subcategory: "All", lat: 25.4485, lng: 78.5520, details: "Highly reputed Christian missionary school providing CBSE standard education to local students.", link: "https://stjudesjhansi.org/" },
+            { id: 5, name: "Christ the King College", category: "school", subcategory: "All", lat: 25.4402, lng: 78.5712, details: "Historic boys higher education academy offering robust science and commerce secondary programs.", link: "https://www.ckcjhansi.org/" },
+
+            // Hospitals (Government & Private)
+            { id: 6, name: "Maharani Laxmi Bai Medical College", category: "hospital", subcategory: "Government", lat: 25.4294, lng: 78.5601, details: "Crucial regional super-specialty government medical center serving Jhansi and outer rural districts.", link: "https://mlbmcjhhansi.org/" },
+            { id: 7, name: "District Hospital Jhansi", category: "hospital", subcategory: "Government", lat: 25.4496, lng: 78.5752, details: "Core civil hospital located in the middle of town focusing on accessible subsidized government health treatments.", link: "https://uphealth.up.nic.in" },
+            { id: 8, name: "St. Jude's Hospital", category: "hospital", subcategory: "Private", lat: 25.4482, lng: 78.5534, details: "Private community healthcare institution providing critical diagnostic and maternity units.", link: "https://stjudeshospitaljhansi.com/" },
+
+            // Shops (Grocery, Sports, Clothing, Cosmetic)
+            { id: 9, name: "Elite Groceries Store", category: "shop", subcategory: "Grocery", lat: 25.4475, lng: 78.5672, details: "Multi-brand daily grocery shop offering fast home delivery options near Elite Crossing.", link: "https://www.google.com/search?q=grocery+shops+in+jhansi" },
+            { id: 10, name: "Raj Sports World", category: "shop", subcategory: "Sports", lat: 25.4441, lng: 78.5695, details: "Comprehensive vendor carrying top national brand sports gears, bats, and activewear options.", link: "https://www.google.com/search?q=sports+shops+in+jhansi" },
+            { id: 11, name: "Jhansi Garments Hub", category: "shop", subcategory: "Clothing", lat: 25.4435, lng: 78.5831, details: "Bustling retail hotspot for premium clothing lines and standard wedding attire ensembles.", link: "https://www.google.com/search?q=clothing+shops+in+jhansi" },
+            { id: 12, name: "Beauty Zone Cosmetics", category: "shop", subcategory: "Cosmetic", lat: 25.4452, lng: 78.5744, details: "Wide inventory of beauty care products, salons essentials, and perfume formulations.", link: "https://www.google.com/search?q=cosmetic+shops+in+jhansi" },
+
+            // Monuments
+            { id: 13, name: "Jhansi Fort (Jhansi Qila)", category: "monument", subcategory: "All", lat: 25.4578, lng: 78.5786, details: "The historically monumental defense fortress erected on Bangira hill, led by Rani Laxmibai.", link: "https://en.wikipedia.org/wiki/Jhansi_Fort" },
+            { id: 14, name: "Rani Mahal", category: "monument", subcategory: "All", lat: 25.4542, lng: 78.5855, details: "Historic royal palace decorated with stunning murals, standing as an archaeological landmark of the Maratha rule.", link: "https://en.wikipedia.org/wiki/Rani_Mahal" },
+
+            // Hotels & Restaurants
+            { id: 15, name: "Hotel Natraj Sarovar Portico", category: "hotel", subcategory: "All", lat: 25.4468, lng: 78.5651, details: "Premium four-star lodging with international multi-cuisine buffet capabilities.", link: "https://www.sarovarhotels.com/" },
+            { id: 16, name: "Srinathji Restaurant", category: "hotel", subcategory: "All", lat: 25.4459, lng: 78.5681, details: "Highly popular destination for authentic, pure-vegetarian North and South Indian dining formats.", link: "https://www.google.com/search?q=hotels+and+restaurants+of+jhansi" },
+
+            // Marts
+            { id: 17, name: "V-Mart Jhansi", category: "mart", subcategory: "All", lat: 25.4449, lng: 78.5670, details: "Convenient lifestyle departmental superstore offering low-cost apparel and grocery lines.", link: "https://www.vmart.co.in" },
+            { id: 18, name: "Vishal Mega Mart", category: "mart", subcategory: "All", lat: 25.4398, lng: 78.5721, details: "Expansive multi-tier discount megamart offering groceries, storage goods, and garments.", link: "https://www.vishalmegamart.com/" },
+
+            // Automobile Showrooms (Bike & Car)
+            { id: 19, name: "Hero Motocorp Showroom", category: "showroom", subcategory: "Bike", lat: 25.4385, lng: 78.5521, details: "Authorized primary dealership for modern Hero commuter motorcycles and scooters.", link: "https://www.google.com/search?q=bike+showrooms+in+jhansi" },
+            { id: 20, name: "Maruti Suzuki Arena", category: "showroom", subcategory: "Car", lat: 25.4361, lng: 78.5492, details: "Leading regional automotive outlet displaying the latest hatchback, SUV, and EV models.", link: "https://www.google.com/search?q=car+showrooms+in+jhansi" }
+        ];
+
+        let locations = [];
+        let mapInstance = null;
+        let markerGroup = null;
+        let currentFilter = 'all';
+        let currentSubfilter = 'all';
+        let searchQuery = '';
+        let mapMarkers = {}; 
+        let selectedLocationId = null;
+
+        // Custom Confirm Callback Store
+        let confirmActionCallback = null;
+
+        // Map style providers
+        const mapStyles = {
+            voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+            light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+            street: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+        };
+        let activeTileLayer = null;
+
+        // Initialize State Local Database
+        function initData() {
+            const stored = localStorage.getItem('sarthak_jhansi_db');
+            if (stored) {
+                try {
+                    locations = JSON.parse(stored);
+                } catch(e) {
+                    locations = [...defaultLocations];
+                }
+            } else {
+                locations = [...defaultLocations];
+                localStorage.setItem('sarthak_jhansi_db', JSON.stringify(locations));
+            }
+            updateDatabaseCounter();
+        }
+
+        function updateDatabaseCounter() {
+            const count = locations.length;
+            document.getElementById('db-counter').textContent = `Database: ${count} Locations`;
+        }
+
+        // Initialize Map
+        function initMap() {
+            // Focus on Elite Crossing area, Jhansi: 25.4484, 78.5685
+            mapInstance = L.map('map', {
+                zoomControl: true,
+                attributionControl: false
+            }).setView([25.4484, 78.5685], 13);
+            
+            // Set default subtle map style (CartoDB Voyager)
+            activeTileLayer = L.tileLayer(mapStyles.voyager, {
+                maxZoom: 19
+            }).addTo(mapInstance);
+
+            markerGroup = L.layerGroup().addTo(mapInstance);
+        }
+
+        // Change Map Styles
+        function changeMapStyle(style) {
+            if (activeTileLayer) {
+                mapInstance.removeLayer(activeTileLayer);
+            }
+            activeTileLayer = L.tileLayer(mapStyles[style], { maxZoom: 19 }).addTo(mapInstance);
+            
+            // Highlight active button
+            ['voyager', 'light', 'street'].forEach(s => {
+                const btn = document.getElementById(`tile-${s}`);
+                if (s === style) {
+                    btn.className = "text-[10px] font-bold px-2.5 py-1 rounded-md bg-white text-slate-800 shadow-sm transition";
+                } else {
+                    btn.className = "text-[10px] font-bold px-2.5 py-1 rounded-md text-slate-500 hover:text-slate-800 transition";
+                }
+            });
+        }
+
+        const subcategoriesConfig = {
+            college: ["Government", "Private"],
+            school: ["All"],
+            hospital: ["Government", "Private"],
+            shop: ["Grocery", "Sports", "Clothing", "Cosmetic"],
+            monument: ["All"],
+            hotel: ["All"],
+            mart: ["All"],
+            showroom: ["Bike", "Car"]
+        };
+
+        function updateSubcategoryDropdown() {
+            const mainCat = document.getElementById('add-category').value;
+            const subDropdown = document.getElementById('add-subcategory');
+            subDropdown.innerHTML = '';
+            
+            const subs = subcategoriesConfig[mainCat] || ["All"];
+            subs.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = s;
+                subDropdown.appendChild(opt);
+            });
+        }
+
+        function renderSubfilters() {
+            const subContainer = document.getElementById('sub-filters-container');
+            const subList = document.getElementById('sub-filters');
+            subList.innerHTML = '';
+
+            if (currentFilter === 'all' || !subcategoriesConfig[currentFilter] || subcategoriesConfig[currentFilter].length <= 1) {
+                subContainer.classList.add('hidden');
+                currentSubfilter = 'all';
+                return;
+            }
+
+            subContainer.classList.remove('hidden');
+            
+            // Render sub-category pills
+            const btnAll = document.createElement('button');
+            btnAll.textContent = "All";
+            btnAll.className = `px-2.5 py-1 text-[10px] uppercase tracking-wider rounded-lg font-bold border transition ${currentSubfilter === 'all' ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'}`;
+            btnAll.onclick = () => {
+                currentSubfilter = 'all';
+                renderUI();
+                renderSubfilters();
+            };
+            subList.appendChild(btnAll);
+
+            subcategoriesConfig[currentFilter].forEach(sub => {
+                const btn = document.createElement('button');
+                btn.textContent = sub;
+                btn.className = `px-2.5 py-1 text-[10px] uppercase tracking-wider rounded-lg font-bold border transition ${currentSubfilter === sub ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'}`;
+                btn.onclick = () => {
+                    currentSubfilter = sub;
+                    renderUI();
+                    renderSubfilters();
+                };
+                subList.appendChild(btn);
+            });
+        }
+
+        function getFilteredPlaces() {
+            return locations.filter(place => {
+                const matchCategory = currentFilter === 'all' || place.category === currentFilter;
+                const matchSubcategory = currentSubfilter === 'all' || place.subcategory === currentSubfilter;
+                const matchSearch = place.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                    place.details.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                    place.subcategory.toLowerCase().includes(searchQuery.toLowerCase());
+                return matchCategory && matchSubcategory && matchSearch;
+            });
+        }
+
+        function handleSearch() {
+            searchQuery = document.getElementById('search-input').value;
+            const clearBtn = document.getElementById('clear-search-btn');
+            if (searchQuery.length > 0) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+            renderUI();
+        }
+
+        function clearSearch() {
+            document.getElementById('search-input').value = '';
+            searchQuery = '';
+            document.getElementById('clear-search-btn').classList.add('hidden');
+            renderUI();
+        }
+
+        function filterCategory(category) {
+            currentFilter = category;
+            currentSubfilter = 'all'; 
+            
+            // Highlight active button
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.className = 'category-btn bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60 text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-2 justify-center';
+            });
+
+            const activeBtn = document.getElementById(`btn-${category}`);
+            if (activeBtn) {
+                activeBtn.className = 'category-btn active bg-indigo-600 text-white text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-2 justify-center shadow-sm shadow-indigo-600/15';
+            }
+
+            renderSubfilters();
+            renderUI();
+        }
+
+        // Icon color map
+        const getIconColor = (cat) => {
+            switch(cat) {
+                case 'college': return '#4f46e5'; // Indigo
+                case 'school': return '#0284c7';  // Sky
+                case 'hospital': return '#e11d48'; // Rose
+                case 'shop': return '#059669';     // Emerald
+                case 'monument': return '#d97706'; // Amber
+                case 'hotel': return '#7c3aed';    // Violet
+                case 'mart': return '#0d9488';     // Teal
+                case 'showroom': return '#0891b2'; // Cyan
+                default: return '#475569';
+            }
+        };
+
+        function getIconClass(cat) {
+            switch(cat) {
+                case 'college': return 'fa-solid fa-graduation-cap';
+                case 'school': return 'fa-solid fa-school';
+                case 'hospital': return 'fa-solid fa-hospital';
+                case 'shop': return 'fa-solid fa-bag-shopping';
+                case 'monument': return 'fa-solid fa-gopuram';
+                case 'hotel': return 'fa-solid fa-utensils';
+                case 'mart': return 'fa-solid fa-cart-shopping';
+                case 'showroom': return 'fa-solid fa-car';
+                default: return 'fa-solid fa-location-dot';
+            }
+        }
+
+        function renderUI() {
+            const filtered = getFilteredPlaces();
+            
+            // Update counter
+            document.getElementById('results-count').textContent = filtered.length;
+
+            // Clear markers & sidecards
+            markerGroup.clearLayers();
+            const listContainer = document.getElementById('places-list');
+            listContainer.innerHTML = '';
+            mapMarkers = {};
+
+            if (filtered.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-center py-10 text-slate-400">
+                        <i class="fa-solid fa-map-pin text-2xl mb-2 text-slate-300 block animate-bounce"></i>
+                        <span class="text-xs font-medium">No results found in local records.</span>
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(place => {
+                const isSelected = selectedLocationId === place.id;
+                
+                // Construct Custom Pin Marker
+                const markerHtml = `
+                    <div class="${isSelected ? 'animate-pulse-select' : ''}" style="
+                        background-color: ${getIconColor(place.category)}; 
+                        width: 24px; 
+                        height: 24px; 
+                        border-radius: 50% 50% 50% 0; 
+                        transform: rotate(-45deg); 
+                        display: flex; 
+                        align-items: center; 
+                        justify-content: center;
+                        border: 2px solid white;
+                        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.15);">
+                        <div style="transform: rotate(45deg); color: white; font-size: 10px;">
+                            <i class="${getIconClass(place.category)}"></i>
+                        </div>
+                    </div>`;
+
+                const customIcon = L.divIcon({
+                    html: markerHtml,
+                    className: 'custom-div-icon',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 24],
+                    popupAnchor: [0, -24]
+                });
+
+                const marker = L.marker([place.lat, place.lng], { icon: customIcon });
+                
+                const popupContent = `
+                    <div class="p-1.5 font-sans max-w-[200px]">
+                        <h4 class="font-bold text-slate-800 text-xs mb-0.5">${place.name}</h4>
+                        <span class="inline-block text-[8px] uppercase tracking-wider font-extrabold text-indigo-600 mb-1.5">
+                            ${place.subcategory} ${place.category}
+                        </span>
+                        <p class="text-[11px] text-slate-500 mb-2 truncate">${place.details}</p>
+                        <a href="${place.link}" target="_blank" class="text-[11px] text-indigo-600 hover:underline font-bold flex items-center gap-0.5">
+                            Visit Site <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                        </a>
+                    </div>
+                `;
+                marker.bindPopup(popupContent);
+                
+                mapMarkers[place.id] = marker;
+                markerGroup.addLayer(marker);
+
+                marker.on('click', () => {
+                    selectPlace(place, false);
+                });
+
+                // Create sleek Sidebar Item Card
+                const card = document.createElement('div');
+                card.className = `border rounded-xl p-3.5 transition cursor-pointer flex flex-col justify-between transform hover:-translate-y-[2px] hover:shadow-md ${isSelected ? 'bg-indigo-50/40 border-indigo-200' : 'bg-white border-slate-100 hover:border-slate-300'}`;
+                card.onclick = () => {
+                    selectPlace(place, true);
+                };
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start gap-2">
+                        <h4 class="font-bold text-slate-800 text-xs hover:text-indigo-600 transition truncate">${place.name}</h4>
+                        <span class="text-[8px] tracking-wider uppercase font-extrabold px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 shrink-0">
+                            ${place.subcategory}
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">${place.details}</p>
+                    <div class="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-100/60">
+                        <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                            <i class="${getIconClass(place.category)} mr-1 text-[11px]" style="color: ${getIconColor(place.category)}"></i> ${place.category}
+                        </span>
+                        <span class="text-[9px] font-mono text-slate-300">${place.lat.toFixed(4)}, ${place.lng.toFixed(4)}</span>
+                    </div>
+                `;
+                listContainer.appendChild(card);
+            });
+        }
+
+        // Select Place Action
+        function selectPlace(place, zoomToMarker = false) {
+            selectedLocationId = place.id;
+            
+            // Re-render UI list quickly to apply highlights
+            renderUI();
+
+            document.getElementById('default-info').classList.add('hidden');
+            const detailPanel = document.getElementById('detail-info');
+            detailPanel.classList.remove('hidden');
+
+            document.getElementById('detail-title').textContent = place.name;
+            document.getElementById('detail-tag').textContent = place.category;
+            document.getElementById('detail-subtag').textContent = place.subcategory;
+            document.getElementById('detail-coords').innerHTML = `<i class="fa-solid fa-compass mr-1"></i> GPS: ${place.lat}, ${place.lng}`;
+            document.getElementById('detail-desc').textContent = place.details;
+            
+            // Dynamic redirection buttons
+            document.getElementById('detail-link').href = place.link;
+            document.getElementById('detail-route').onclick = () => {
+                window.open(`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`, '_blank');
+            };
+
+            // Custom delete confirmation
+            const deleteBtn = document.getElementById('delete-btn');
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                triggerConfirmModal("Are you sure you want to delete this place from Sarthak's directory database?", () => {
+                    deleteLocation(place.id);
+                });
+            };
+
+            // Map operations
+            if (zoomToMarker && mapInstance && mapMarkers[place.id]) {
+                mapInstance.setView([place.lat, place.lng], 15);
+                mapMarkers[place.id].openPopup();
+            }
+        }
+
+        // Toggle Form
+        function toggleAddForm() {
+            const addPanel = document.getElementById('add-panel');
+            const infoPanel = document.getElementById('info-panel');
+            
+            if (addPanel.classList.contains('hidden')) {
+                addPanel.classList.remove('hidden');
+                infoPanel.classList.add('hidden');
+                updateSubcategoryDropdown();
+            } else {
+                addPanel.classList.add('hidden');
+                infoPanel.classList.remove('hidden');
+                document.getElementById('default-info').classList.remove('hidden');
+                document.getElementById('detail-info').classList.add('hidden');
+                selectedLocationId = null;
+                renderUI();
+            }
+        }
+
+        // Save New Place
+        function saveNewPlace(e) {
+            e.preventDefault();
+
+            const name = document.getElementById('add-name').value.trim();
+            const category = document.getElementById('add-category').value;
+            const subcategory = document.getElementById('add-subcategory').value;
+            const lat = parseFloat(document.getElementById('add-lat').value);
+            const lng = parseFloat(document.getElementById('add-lng').value);
+            const details = document.getElementById('add-desc').value.trim();
+            const link = document.getElementById('add-link').value.trim();
+
+            if (!name || isNaN(lat) || isNaN(lng) || !details || !link) {
+                triggerAlertModal("Error", "Please make sure all fields are filled with valid values.");
+                return;
+            }
+
+            const newPlace = {
+                id: Date.now(), 
+                name,
+                category,
+                subcategory,
+                lat,
+                lng,
+                details,
+                link
+            };
+
+            locations.push(newPlace);
+            localStorage.setItem('sarthak_jhansi_db', JSON.stringify(locations));
+            
+            updateDatabaseCounter();
+            document.getElementById('add-place-form').reset();
+            toggleAddForm();
+
+            // Set main filter to matched category to let the user see it
+            filterCategory(category);
+            
+            // Auto-focus on the newly created place
+            setTimeout(() => {
+                selectPlace(newPlace, true);
+                triggerAlertModal("Location Added", `"${name}" has been successfully appended to your local database.`);
+            }, 300);
+        }
+
+        // Delete Location Action
+        function deleteLocation(id) {
+            locations = locations.filter(p => p.id !== id);
+            localStorage.setItem('sarthak_jhansi_db', JSON.stringify(locations));
+            
+            updateDatabaseCounter();
+            
+            // Reset Panels to instructions
+            document.getElementById('default-info').classList.remove('hidden');
+            document.getElementById('detail-info').classList.add('hidden');
+            selectedLocationId = null;
+
+            renderUI();
+        }
+
+        // Custom Alert Modal Controller
+        function triggerAlertModal(title, msg) {
+            const modal = document.getElementById('custom-alert-modal');
+            const box = modal.querySelector('div');
+            
+            document.getElementById('alert-title').textContent = title;
+            document.getElementById('alert-msg').textContent = msg;
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                box.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeAlertModal() {
+            const modal = document.getElementById('custom-alert-modal');
+            const box = modal.querySelector('div');
+            
+            modal.classList.add('opacity-0');
+            box.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 250);
+        }
+
+        // Custom Confirm Modal Controller
+        function triggerConfirmModal(msg, onConfirm) {
+            const modal = document.getElementById('custom-confirm-modal');
+            const box = modal.querySelector('div');
+            
+            document.getElementById('confirm-msg').textContent = msg;
+            confirmActionCallback = onConfirm;
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                box.classList.remove('scale-95');
+            }, 10);
+
+            // Bind click to Yes Button
+            document.getElementById('confirm-yes-btn').onclick = () => {
+                closeConfirmModal(true);
+            };
+        }
+
+        function closeConfirmModal(success) {
+            const modal = document.getElementById('custom-confirm-modal');
+            const box = modal.querySelector('div');
+            
+            modal.classList.add('opacity-0');
+            box.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                if (success && confirmActionCallback) {
+                    confirmActionCallback();
+                }
+                confirmActionCallback = null;
+            }, 250);
+        }
+
+        // Load initialization parameters
+        window.onload = function() {
+            initData();
+            initMap();
+            renderUI();
+        };
+    </script>
+</body>
+</html>
